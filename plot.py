@@ -2,15 +2,18 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="EECS Online Plotter", layout="centered")
-st.title("EECS Online Plotter")
+st.set_page_config(page_title="EECS Plotter")
+st.title("EECS Plotter")
+
+st.write("- use `x(n)` for the main signal, `u(n)` for unit step, and `delta(n)` for impulse.")
+st.write("- type it out like python math: `3 * x(n)` not `3x(n)`. use parentheses like `x(n/2)` not brackets.")
+st.write("- examples: `x(-n / 2)` or `x(n) * u(3 - n)`")
 
 n_orig = np.arange(-6, 9)
 x_orig = np.array([0, 0, 0, 2, -1, 0, 3, -2, 1, 2, 0, -1, 0, 0, 0])
 x_dict = dict(zip(n_orig, x_orig))
 
 def x_func(n_target):
-    """Evaluates x[n]. Returns 0 if n is not an integer or out of bounds."""
     n_target = np.asarray(n_target)
     is_int = np.isclose(n_target, np.round(n_target))
     result = np.zeros_like(n_target, dtype=float)
@@ -22,22 +25,9 @@ def x_func(n_target):
 u_func = lambda n: np.heaviside(n, 1)
 delta_func = lambda n: np.where(np.isclose(n, 0), 1.0, 0.0)
 
-col1, col2 = st.columns([2, 1])
+equation_str = st.text_input("type equation here:", value="x(n)")
 
-with col1:
-    equation_str = st.text_input(
-        "Signal Equation:",
-        value="x(n)",
-        placeholder="e.g., x(-n) * u(n+1)"
-    )
-
-with col2:
-    x_range = st.slider(
-        "X-Axis Viewing Range",
-        min_value=-30,
-        max_value=30,
-        value=(-6, 8)
-    )
+x_range = st.slider("x-axis range", -30, 30, (-6, 8))
 
 n_vals = np.arange(-50, 51) 
 
@@ -64,19 +54,19 @@ try:
     if len(n_plot) > 0:
         ax.stem(n_plot, x_plot, basefmt="black")
 
-    ax.set_title(f"y[n] = {equation_str}", fontsize=14, fontweight='bold')
-    ax.set_xlabel("n", fontsize=12)
-    ax.set_ylabel("Amplitude", fontsize=12)
+    ax.set_title(f"y[n] = {equation_str}")
+    ax.set_xlabel("n")
+    ax.set_ylabel("amplitude")
 
     y_min = min(x_plot) if len(x_plot) > 0 else -2
     y_max = max(x_plot) if len(x_plot) > 0 else 2
     ax.set_ylim(y_min - 1.5, y_max + 1.5)
 
     ax.grid(True, linestyle='--', alpha=0.6)
-    ax.axhline(0, color='black', linewidth=1.2)
-    ax.axvline(0, color='black', linewidth=1.2)
+    ax.axhline(0, color='black')
+    ax.axvline(0, color='black')
 
     st.pyplot(fig)
 
-except Exception as e:
-    st.error("Syntax Error. Please check your equation. Remember to use standard Python math operations (e.g., `x(n/2)` or `x(n) * delta(n-3)`).")
+except Exception:
+    st.error("uh oh, something is wrong with the equation. check your math and try again.")
