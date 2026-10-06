@@ -106,3 +106,4 @@ try:
     st.pyplot(fig)
 
 except Exception as e:
+    st.error("Syntax Error. Please check your equation. Remember to use standard Python math operations (e.g., `x(n/2)` or `x(n) * delta(n-3)`).")
