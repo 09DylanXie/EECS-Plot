@@ -5,22 +5,37 @@ import matplotlib.pyplot as plt
 # ==========================================
 # PAGE CONFIGURATION
 # ==========================================
-st.set_page_config(page_title="Discrete-Time Signals", layout="centered")
-st.title("Discrete-Time Signal Transformations")
+st.set_page_config(page_title="Custom Signal Plotter", layout="centered")
+st.title("Discrete-Time Signal Plotter")
+st.markdown("""
+**Create your own plots!** Type your transformation equation below. 
+* Use **`x(n)`** for the original signal.
+* Use **`u(n)`** for the unit step function.
+* Use **`delta(n)`** for the unit impulse function.
+* *Note: Always use `*` for multiplication (e.g., `3*x(n)`, not `3x(n)`).*
+""")
 
 # ==========================================
-# DATA & HELPERS
+# DATA & SIGNAL FUNCTIONS
 # ==========================================
-# Original coordinates
 n_orig = np.arange(-6, 9)
 x_orig = np.array([0, 0, 0, 2, -1, 0, 3, -2, 1, 2, 0, -1, 0, 0, 0])
+x_dict = dict(zip(n_orig, x_orig))
 
-def get_x(n_target):
-    x_dict = dict(zip(n_orig, x_orig))
-    return np.array([x_dict.get(ni, 0) for ni in n_target])
+def x_func(n_target):
+    """Evaluates x[n]. Returns 0 if n is not an integer or out of bounds."""
+    n_target = np.asarray(n_target)
+    # Check which elements are integers (handles fractional shifts like n/2)
+    is_int = np.isclose(n_target, np.round(n_target))
+    result = np.zeros_like(n_target, dtype=float)
+    for i, val in enumerate(n_target):
+        if is_int[i]:
+            result[i] = x_dict.get(int(np.round(val)), 0)
+    return result
 
-u = lambda n: np.heaviside(n, 1)
-delta = lambda n: np.where(n == 0, 1, 0)
+# Standard signal functions
+u_func = lambda n: np.heaviside(n, 1)
+delta_func = lambda n: np.where(np.isclose(n, 0), 1.0, 0.0)
 
 # ==========================================
 # UI CONTROLS
@@ -28,101 +43,66 @@ delta = lambda n: np.where(n == 0, 1, 0)
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    plot_choice = st.selectbox(
-        "Select Problem Part:",
-        [
-            "Original Signal x[n]",
-            "1.1: x[2n]",
-            "1.2: x[-n/2]",
-            "1.3: x[1 + n/3]",
-            "1.4: 3x[n] - 2",
-            "1.5: 2x[n+4] - 1",
-            "2.1: x[-n]u[n+1]",
-            "2.2: x[n]u[-n]",
-            "2.3: x[n]u[n-3]",
-            "2.4: x[n]u[3-n]",
-            "2.5: x[n]δ[n-2]",
-            "2.6: x[n](δ[n] + δ[n-3])"
-        ]
+    equation_str = st.text_input(
+        "Signal Equation:",
+        value="3 * x(n) - 2",
+        placeholder="e.g., x(-n) * u(n+1)"
     )
 
 with col2:
     x_range = st.slider(
         "X-Axis Viewing Range",
-        min_value=-20,
-        max_value=20,
+        min_value=-30,
+        max_value=30,
         value=(-10, 10)
     )
 
 # ==========================================
-# TRANSFORMATION LOGIC
+# EVALUATION & PLOT
 # ==========================================
-# Generate a wide domain to safely compute expansive transformations
-n_full = np.arange(-30, 31)
+# Compute over a wide invisible domain to allow for large shifts
+n_vals = np.arange(-50, 51) 
 
-if plot_choice == "Original Signal x[n]":
-    n_vals, x_vals = n_orig, x_orig
-elif plot_choice == "1.1: x[2n]":
-    n_vals = n_full
-    x_vals = get_x(2 * n_vals)
-elif plot_choice == "1.2: x[-n/2]":
-    n_vals = n_full
-    x_vals = np.where(n_vals % 2 == 0, get_x(-n_vals // 2), 0)
-elif plot_choice == "1.3: x[1 + n/3]":
-    n_vals = n_full
-    x_vals = np.where(n_vals % 3 == 0, get_x(1 + n_vals // 3), 0)
-elif plot_choice == "1.4: 3x[n] - 2":
-    n_vals = n_full
-    x_vals = 3 * get_x(n_vals) - 2
-elif plot_choice == "1.5: 2x[n+4] - 1":
-    n_vals = n_full
-    x_vals = 2 * get_x(n_vals + 4) - 1
-elif plot_choice == "2.1: x[-n]u[n+1]":
-    n_vals = n_full
-    x_vals = get_x(-n_vals) * u(n_vals + 1)
-elif plot_choice == "2.2: x[n]u[-n]":
-    n_vals = n_full
-    x_vals = get_x(n_vals) * u(-n_vals)
-elif plot_choice == "2.3: x[n]u[n-3]":
-    n_vals = n_full
-    x_vals = get_x(n_vals) * u(n_vals - 3)
-elif plot_choice == "2.4: x[n]u[3-n]":
-    n_vals = n_full
-    x_vals = get_x(n_vals) * u(3 - n_vals)
-elif plot_choice == "2.5: x[n]δ[n-2]":
-    n_vals = n_full
-    x_vals = get_x(n_vals) * delta(n_vals - 2)
-elif plot_choice == "2.6: x[n](δ[n] + δ[n-3])":
-    n_vals = n_full
-    x_vals = get_x(n_vals) * (delta(n_vals) + delta(n_vals - 3))
+# Dictionary of allowed functions and variables for the eval() parser
+eval_dict = {
+    "n": n_vals,
+    "x": x_func,
+    "u": u_func,
+    "delta": delta_func,
+    "np": np
+}
 
-# ==========================================
-# FILTER & PLOT
-# ==========================================
-# Mask data to fit strictly within the slider boundaries
-mask = (n_vals >= x_range[0]) & (n_vals <= x_range[1])
-n_plot = n_vals[mask]
-x_plot = x_vals[mask]
+try:
+    # Safely evaluate the text input as a mathematical expression
+    x_vals = eval(equation_str, {"__builtins__": {}}, eval_dict)
+    
+    # Handle edge case where user types a constant (e.g., "0")
+    if isinstance(x_vals, (int, float)):
+        x_vals = np.full_like(n_vals, x_vals, dtype=float)
 
-fig, ax = plt.subplots(figsize=(10, 5))
+    # Filter data to only show what is inside the slider window
+    mask = (n_vals >= x_range[0]) & (n_vals <= x_range[1])
+    n_plot = n_vals[mask]
+    x_plot = x_vals[mask]
 
-# Draw stem plot
-if len(n_plot) > 0:
-    ax.stem(n_plot, x_plot, basefmt="black")
+    fig, ax = plt.subplots(figsize=(10, 5))
 
-# Formatting matching the previous grid style
-ax.set_title(plot_choice, fontsize=14, fontweight='bold')
-ax.set_xlabel("n", fontsize=12)
-ax.set_ylabel("Amplitude", fontsize=12)
+    if len(n_plot) > 0:
+        ax.stem(n_plot, x_plot, basefmt="black")
 
-# Dynamic Y-axis scaling based on visible points
-y_min = min(x_plot) if len(x_plot) > 0 else -2
-y_max = max(x_plot) if len(x_plot) > 0 else 2
-ax.set_ylim(y_min - 1.5, y_max + 1.5)
+    ax.set_title(f"y[n] = {equation_str}", fontsize=14, fontweight='bold')
+    ax.set_xlabel("n", fontsize=12)
+    ax.set_ylabel("Amplitude", fontsize=12)
 
-ax.grid(True, linestyle='--', alpha=0.6)
-ax.axhline(0, color='black', linewidth=1.2)
-ax.axvline(0, color='black', linewidth=1.2)
+    # Dynamically scale Y-axis bounds based on the active equation
+    y_min = min(x_plot) if len(x_plot) > 0 else -2
+    y_max = max(x_plot) if len(x_plot) > 0 else 2
+    ax.set_ylim(y_min - 1.5, y_max + 1.5)
 
-# Render plot in Streamlit
-st.pyplot(fig)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.axhline(0, color='black', linewidth=1.2)
+    ax.axvline(0, color='black', linewidth=1.2)
+
+    st.pyplot(fig)
+
+except Exception as e:
